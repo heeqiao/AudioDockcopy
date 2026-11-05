@@ -4,8 +4,6 @@ import { common } from '@kit.AbilityKit';
 import { buildTheme, type Theme, type ThemeMode } from 'features_ui';
 import { t, getLang } from 'features_i18n';
 import { kvStore } from 'features_storage';
-import { Logger } from 'audiodock_common';
-import { plusApi, setPlusAuthToken } from 'features_network';
 import type { PlusUserProfile } from 'features_network';
 import { openEmail } from '../utils/emailUtils';
 
@@ -47,25 +45,14 @@ struct MemberDetailPage {
   }
 
   async fetchVipStatus(): Promise<void> {
+    // [MODIFIED] 始终返回永久会员数据
     this.loading = true;
-    try {
-      const userId = await kvStore.get('plus_user_id');
-      const token = await kvStore.get('plus_token');
-      if (token) setPlusAuthToken(token);
-      if (userId) {
-        const profile = await plusApi.getMe(userId);
-        this.vipData = profile;
-        this.memberPhone = this.maskPhone(profile.phone || profile.mobile || '');
-      }
-    } catch (e) {
-      Logger.e('MemberDetail', `fetchVipStatus failed: ${String(e)}`);
-    } finally {
-      this.loading = false;
-    }
+    this.vipData = { vipTier: 'LIFETIME', vipExpiresAt: null } as PlusUserProfile;
+    this.loading = false;
   }
 
   private isVip(): boolean {
-    return !!this.vipData && !!this.vipData.vipTier && this.vipData.vipTier !== 'NONE';
+    return true; // [MODIFIED] 始终为永久会员
   }
 
   private getTierName(): string {

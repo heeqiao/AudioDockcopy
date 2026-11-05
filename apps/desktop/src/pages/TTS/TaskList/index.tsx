@@ -5,7 +5,6 @@ import {
     getTtsTasks,
     pauseTtsTask,
     resumeTtsTask,
-    plusGetMe,
 } from "@soundx/services";
 import {
     Button,
@@ -32,22 +31,7 @@ const TaskList: React.FC = () => {
   const navigate = useNavigate();
 
   const ensureVipAccess = async () => {
-    const plusToken = localStorage.getItem("plus_token");
-    const plusUserId = localStorage.getItem("plus_user_id");
-    if (!plusToken || !plusUserId) {
-      alert("请先登录会员账号");
-      navigate("/member-login", { replace: true });
-      return false;
-    }
-    let id:any = plusUserId;
-    try { id = JSON.parse(plusUserId); } catch {}
-    const res = await plusGetMe(id);
-    const tier = res?.data?.data?.vipTier;
-    if (!tier || tier === "NONE") {
-      alert("该功能需要开通会员");
-      navigate("/member-benefits", { replace: true });
-      return false;
-    }
+    // [MODIFIED] 始终返回 true（永久会员），无任何限制
     return true;
   };
 

@@ -7,7 +7,6 @@ import common from '@ohos.app.ability.common';
 import { Logger } from 'audiodock_common';
 import { kvStore } from 'features_storage';
 import { httpClient } from 'features_network';
-import { plusApi } from 'features_network';
 import { userDataApi } from 'features_network';
 import { trackApi } from 'features_network';
 import { playlistApi } from 'features_network';
@@ -482,17 +481,10 @@ class WidgetBridgeImpl {
 
   private async syncVip(): Promise<void> {
     try {
-      // plus VIP 系统有独立用户 ID（与 authStore.user.id 不同），见 mobile _layout.tsx syncVipState
-      const userId = await kvStore.get('plus_user_id');
-      if (!userId) {
-        // 未登录 plus 会员系统时不写 KV：让 EntryFormAbility.readIsLocked 走「缓存无效 → 不锁定」分支，
-        // 避免登录态恢复前把 isVip=false 当作"已同步结果"缓存，导致 VIP 也被错误锁定。
-        return;
-      }
-      const status = await plusApi.getVipStatus(userId);
+      // [MODIFIED] 始终为永久会员，无任何限制
       const snap: VipSnapshot = {
-        isVip: !!status.isVip,
-        expiresAt: status.expiresAt ?? null,
+        isVip: true,
+        expiresAt: null,
         updatedAt: Date.now(),
       };
       await kvStore.setJSON<VipSnapshot>(WIDGET_KV_KEYS.vip, snap);
@@ -776,8 +768,8 @@ class WidgetBridgeImpl {
         data[keys[i]] = (payload as Record<string, Object>)[keys[i]];
       }
       // isLocked 卡片侧按 VIP 判定，主 App 推送时带上当前缓存值避免卡片闪回锁定页
-      const vip = await kvStore.getJSON<VipSnapshot>(WIDGET_KV_KEYS.vip);
-      data['isLocked'] = vip ? !vip.isVip : false;
+      // [MODIFIED] 始终不锁定（永久会员）
+      data['isLocked'] = false;
       for (let i = 0; i < ids.length; i++) {
         const formId: string = ids[i];
         try {
@@ -831,10 +823,11 @@ class WidgetBridgeImpl {
     await this.syncPlaylists();
   }
 
-  /** 读 VIP 状态（卡片锁定页判定） */
+  /** 读 VIP 状态（卡片锁定页判定）
+   * [MODIFIED] 始终返回永久会员
+   */
   async readVip(): Promise<VipSnapshot> {
-    const v = await kvStore.getJSON<VipSnapshot>(WIDGET_KV_KEYS.vip);
-    return v ?? { isVip: false, expiresAt: null, updatedAt: 0 };
+    return { isVip: true, expiresAt: null, updatedAt: Date.now() };
   }
 }
 

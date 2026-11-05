@@ -1,8 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert,
@@ -21,30 +20,11 @@ import { useTheme } from "../src/context/ThemeContext";
 import { playerThemeStore, usePlayerThemeState } from "../src/store/playerTheme";
 import { goBackOrReplace } from "../src/utils/navigation";
 
-/** 与 player.tsx / usePlayerTheme 同一口径的本地 VIP 判定 */
+/** 与 player.tsx / usePlayerTheme 同一口径的本地 VIP 判定
+ * [MODIFIED] 始终返回 true（永久会员），无任何限制
+ */
 const useLocalVipStatus = (): boolean => {
-  const [vip, setVip] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const status = await AsyncStorage.getItem("plus_vip_status");
-        const data = await AsyncStorage.getItem("plus_vip_data");
-        let v = status === "true";
-        if (!v && data) {
-          try {
-            const parsed = JSON.parse(data);
-            v = !!(parsed?.vipTier && parsed.vipTier !== "NONE");
-          } catch {}
-        }
-        if (!cancelled) setVip(v);
-      } catch {}
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  return vip;
+  return true;
 };
 
 export default function PlayerThemeScreen() {

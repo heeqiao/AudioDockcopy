@@ -6,7 +6,7 @@ import "react-native-reanimated";
 import "../src/i18n";
 import { AuthProvider, useAuth } from "../src/context/AuthContext";
 import { PlayerProvider, usePlayer } from "../src/context/PlayerContext";
-import { getAlbumHistory, getAlbumTracks, getLatestTracks, getPlaylistById, getTrackHistory, plusGetMe, toggleTrackLike, toggleTrackUnLike } from "@soundx/services";
+import { getAlbumHistory, getAlbumTracks, getLatestTracks, getPlaylistById, getTrackHistory, toggleTrackLike, toggleTrackUnLike } from "@soundx/services";
 import { ThemeProvider, useTheme } from "../src/context/ThemeContext";
 import { PlayModeProvider, usePlayMode } from "../src/utils/playMode";
 
@@ -46,7 +46,7 @@ function RootLayoutNav() {
   const { mode: contentMode } = usePlayMode();
   const segments = useSegments();
   const router = useRouter();
-  const [isVip, setIsVip] = React.useState(false);
+  const [isVip, setIsVip] = React.useState(true); // [MODIFIED] 始终为永久会员
   const [carLayoutSize, setCarLayoutSize] = useState({ width: 0, height: 0 });
   const fuAnim = useRef(new Animated.Value(0)).current;
 
@@ -249,61 +249,12 @@ function RootLayoutNav() {
   useEffect(() => {
     const syncVipState = async () => {
       try {
-        // console.log("[WidgetBridge] Syncing VIP state with plusToken:", !!plusToken);
-        // if (!plusToken) {
-        //   setIsVip(false);
-        //   await syncWidgetMembership(false);
-        //   return;
-        // }
-
-        // const syncLocalVipState = async (): Promise<boolean> => {
-        //   const plusVipStatus = await AsyncStorage.getItem("plus_vip_status");
-        //   const plusVipData = await AsyncStorage.getItem("plus_vip_data");
-        //   console.log("[WidgetBridge] Local VIP status:", plusVipStatus, "VIP data:", plusVipData);
-        //   let vip = plusVipStatus === "true";
-
-        //   if (!vip && plusVipData) {
-        //     try {
-        //       const parsed = JSON.parse(plusVipData);
-        //       console.log("[WidgetBridge] Parsed VIP data:", parsed);
-        //       vip = !!(parsed?.vipTier && parsed.vipTier !== "NONE");
-        //     } catch {
-        //       vip = false;
-        //     }
-        //   }
-
-        //   setIsVip(vip);
-        //   await syncWidgetMembership(vip);
-        //   return vip;
-        // };
-
-        // await syncLocalVipState();
-
-        const plusUserId = await AsyncStorage.getItem("plus_user_id");
-        console.log("[WidgetBridge] Retrieved plusUserId from storage:", plusUserId);
-        if (!plusUserId) {
-          return;
-        }
-
-        let userId: any = plusUserId;
-        try {
-          userId = JSON.parse(plusUserId);
-        } catch {}
-
-        const res = await plusGetMe(userId);
-        const vipTier = res?.data?.data?.vipTier;
-        console.log("[WidgetBridge] Fetched VIP tier from API:", vipTier);
-        const vip = !!vipTier && vipTier !== "NONE";
-
-        await AsyncStorage.setItem("plus_vip_status", vip ? "true" : "false");
-        await AsyncStorage.setItem(
-          "plus_vip_data",
-          JSON.stringify(res?.data?.data || {})
-        );
+        // [MODIFIED] 始终为永久会员，无需请求远程服务器
+        setIsVip(true);
+        await AsyncStorage.setItem("plus_vip_status", "true");
+        await AsyncStorage.setItem("plus_vip_data", JSON.stringify({ vipTier: "LIFETIME", vipExpiresAt: null }));
         await AsyncStorage.setItem("plus_vip_updated_at", Date.now().toString());
-        console.log("[WidgetBridge] Updated local VIP status and data in storage");
-        setIsVip(vip);
-        await syncWidgetMembership(vip);
+        await syncWidgetMembership(true);
       } catch (error) {
         console.warn("[WidgetBridge] sync membership failed", error);
       }

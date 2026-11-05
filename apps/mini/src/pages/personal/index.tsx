@@ -11,7 +11,6 @@ import {
   getTrackHistory,
   hasActiveTasks,
   ImportTask,
-  plusGetMe,
   TaskStatus,
 } from '@soundx/services';
 import { Image, Input, ScrollView, Text, View } from '@tarojs/components';
@@ -76,38 +75,14 @@ export default function Personal() {
     };
   }, []);
 
-  const [isVip, setIsVip] = useState(false);
+  const [isVip, setIsVip] = useState(true); // [MODIFIED] 始终为永久会员
 
   const refreshVipStatus = async () => {
-    const plusToken = Taro.getStorageSync('plus_token');
-    const plusUserId = Taro.getStorageSync('plus_user_id');
-
-    if (!plusToken || !plusUserId) {
-      setIsVip(false);
-      Taro.setStorageSync('plus_vip_status', 'false');
-      return;
-    }
-
-    let id: any = plusUserId;
-    try {
-      id = JSON.parse(plusUserId);
-    } catch {}
-
-    try {
-      const res = await plusGetMe(id);
-      const vipTier = res?.data?.data?.vipTier;
-      const isVipUser = vipTier && vipTier !== 'NONE';
-      setIsVip(!!isVipUser);
-      
-      Taro.setStorageSync('plus_vip_status', isVipUser ? 'true' : 'false');
-      Taro.setStorageSync('plus_vip_data', JSON.stringify(res?.data?.data || {}));
-      Taro.setStorageSync('plus_vip_updated_at', Date.now().toString());
-    } catch (err) {
-      console.warn('Failed to refresh vip status in personal page', err);
-      // Fallback to local cache if network fails
-      const isVipStr = Taro.getStorageSync('plus_vip_status');
-      setIsVip(isVipStr === 'true');
-    }
+    // [MODIFIED] 始终为永久会员，无需请求远程服务器
+    setIsVip(true);
+    Taro.setStorageSync('plus_vip_status', 'true');
+    Taro.setStorageSync('plus_vip_data', JSON.stringify({ vipTier: 'LIFETIME', vipExpiresAt: null }));
+    Taro.setStorageSync('plus_vip_updated_at', Date.now().toString());
   };
 
   const refreshSourceType = () => {

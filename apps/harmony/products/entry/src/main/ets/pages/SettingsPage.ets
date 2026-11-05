@@ -141,7 +141,7 @@ struct SettingsPage {
   @State checkingUpdate: boolean = false;
   @State joiningBeta: boolean = false;
   // 车机模式：VIP 门控状态（aboutToAppear 时拉一次）
-  @State carModeIsVip: boolean = false;
+  @State carModeIsVip: boolean = true; // [MODIFIED] 始终为永久会员，避免首屏受限
   // 屏幕边距 Slider 半模态显示控制
   @State screenInsetModalVisible: boolean = false;
   // 屏幕边距 slider 实时拖动值（松手/点击才持久化，对齐 mobile 的 Slider.onChange End 行为）
@@ -195,30 +195,10 @@ struct SettingsPage {
   }
 
   /**
-   * 车机模式 VIP 门控：拉一次 plus profile，缓存 vipTier 给开关切换时同步判断，
-   * 避免每次切开关都再调一次 plusApi.getMe。对齐 mobile 的 handleToggleCarMode。
+   * 车机模式 VIP 门控：[MODIFIED] 始终为永久会员，无任何限制
    */
   private async loadCarModeVipGate(): Promise<void> {
-    try {
-      const token = await kvStore.get('plus_token');
-      const userId = await kvStore.get('plus_user_id');
-      if (!token || !userId || userId.length === 0) {
-        this.carModeIsVip = false;
-        return;
-      }
-      setPlusAuthToken(token);
-      let id: string = userId;
-      try {
-        const parsed = JSON.parse(userId) as string;
-        if (parsed) id = parsed;
-      } catch { /* keep raw */ }
-      const profile = await plusApi.getMe(id);
-      const tier = profile?.vipTier;
-      this.carModeIsVip = !!tier && tier !== 'NONE';
-    } catch (e) {
-      Logger.w('SettingsPage', `loadCarModeVipGate failed: ${String(e)}`);
-      this.carModeIsVip = false;
-    }
+    this.carModeIsVip = true;
   }
 
   /**
@@ -351,56 +331,14 @@ struct SettingsPage {
 
   /**
    * 车机模式开关切换（对齐 mobile 的 handleToggleCarMode）：
-   * 1. 校验 plus_token + vipTier（会员功能）
+   * 1. [MODIFIED] 不再校验 plus_token + vipTier，所有用户可用
    * 2. 持久化到 kvStore
    * 3. 同步到 AppStorage（@StorageLink 立即触发所有订阅者重渲染）
    * 4. 开启时跳回 MainPage 触发横屏左右布局
    */
   async handleCarModeChange(val: boolean): Promise<void> {
     if (val) {
-      // 1) 必须登录会员账号
-      const plusToken = await kvStore.get('plus_token');
-      const plusUserId = await kvStore.get('plus_user_id');
-      if (!plusToken || !plusUserId || plusUserId.length === 0) {
-        await promptAction.showDialog({
-          title: t('common.memberFeature'),
-          message: t('common.loginFirst'),
-          buttons: [{ text: t('common.ok'), color: '#3F51B5' }],
-        }).catch(() => undefined);
-        return;
-      }
-      // 2) 必须 VIP（页面级缓存 + 实时拉取兜底）
-      let isVip = this.carModeIsVip;
-      if (!isVip) {
-        try {
-          setPlusAuthToken(plusToken);
-          let id: string = plusUserId;
-          try {
-            const parsed = JSON.parse(plusUserId) as string;
-            if (parsed) id = parsed;
-          } catch { /* keep raw */ }
-          const profile = await plusApi.getMe(id);
-          const tier = profile?.vipTier;
-          isVip = !!tier && tier !== 'NONE';
-          this.carModeIsVip = isVip;
-        } catch (e) {
-          Logger.w('SettingsPage', `car mode VIP check failed: ${String(e)}`);
-        }
-      }
-      if (!isVip) {
-        // [软下线] 前往会员页入口已隐藏，仅保留 VIP 功能提示。恢复时还原 goToMemberPage 按钮、
-        // result.index === 1 判断与跳 MemberBenefitsPage 的代码。
-        // ArkUI 的 promptAction.showDialog buttons 不支持 onClick 字段，
-        // 必须 await 返回值根据 index 判断
-        await promptAction.showDialog({
-          title: t('settings.vipOnly'),
-          message: t('settings.carModeVipOnly'),
-          buttons: [
-            { text: t('common.cancel'), color: '#888' },
-          ],
-        }).catch((): undefined => undefined);
-        return;
-      }
+      // [MODIFIED] 跳过 VIP 检查，所有用户可用
     }
     // 3) 持久化 + 同步 AppStorage
     await this.updateBoolSetting('carModeEnabled', val);
@@ -525,7 +463,11 @@ struct SettingsPage {
       // 清理会员态（对齐 mobile：setPlusToken(null) + 清 kvStore）
       setPlusAuthToken(null);
       await kvStore.delete('plus_token');
-      await kvStore.delete('plus_userId');
+      await kvStore.delete('plus_user_id');
+      // [MODIFIED] 注销账号后仍保持永久会员状态，无任何限制
+      await kvStore.set('plus_vip_status', 'true');
+      await kvStore.set('plus_vip_data', JSON.stringify({ vipTier: 'LIFETIME', vipExpiresAt: null }));
+      await kvStore.set('plus_vip_updated_at', Date.now().toString());
       this.deleteMemberConfirmVisible = false;
       promptAction.showToast({ message: t('settings.deleteMemberSuccess') });
       router.replaceUrl({ url: 'pages/MemberLoginPage' });
@@ -1394,13 +1336,7 @@ struct SettingsPage {
       const plusToken: string | null = await kvStore.get('plus_token');
       if (plusToken) setPlusAuthToken(plusToken);
 
-      // 先查一次 VIP 状态，避免重复申请
-      const me = await plusApi.getMe(plusUserId);
-      if (me.vipTier && me.vipTier !== 'NONE') {
-        promptAction.showToast({ message: t('settings.betaTestAlreadyHas') });
-        return;
-      }
-
+      // [MODIFIED] 移除 VIP 短路，内测码入口始终可用（服务端自行判定是否重复参与）
       this.joiningBeta = true;
       const startsAt: Date = new Date();
       const endsAt: Date = new Date(startsAt);

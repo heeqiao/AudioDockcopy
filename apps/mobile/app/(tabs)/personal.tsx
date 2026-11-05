@@ -206,31 +206,7 @@ export default function PersonalScreen() {
       userId: user?.id ? String(user.id) : undefined,
       deviceId: device?.id ? String(device.id) : undefined,
     });
-    const plusToken = await AsyncStorage.getItem("plus_token");
-
-    if (!plusToken) {
-      Alert.alert(
-        t("personalPage.memberOnlyTitle"),
-        t("personalPage.scanLoginMemberOnly"),
-        [
-          { text: t("common.cancel"), style: "cancel" },
-          {
-            text: t("personalPage.memberLogin"),
-            onPress: () => {
-              trackEvent({
-                feature: "scan_login",
-                eventName: "scan_login_member_login_redirect",
-                userId: user?.id ? String(user.id) : undefined,
-                deviceId: device?.id ? String(device.id) : undefined,
-              });
-              router.push("/member-login" as any);
-            },
-          },
-        ],
-      );
-      return;
-    }
-
+    // [MODIFIED] 移除会员登录/VIP 校验，扫码登录所有用户可用
     if (isPlusVip) {
       trackEvent({
         feature: "scan_login",
@@ -388,7 +364,7 @@ export default function PersonalScreen() {
       clearInterval(timer);
     };
   }, []);
-  const [isPlusVip, setIsPlusVip] = useState(false);
+  const [isPlusVip, setIsPlusVip] = useState(true); // [MODIFIED] 始终为永久会员
   const [plusVipData, setPlusVipData] = useState<any>(null);
 
   useEffect(() => {
@@ -520,18 +496,7 @@ export default function PersonalScreen() {
       deviceId: device?.id ? String(device.id) : undefined,
     });
 
-    const plusToken = await AsyncStorage.getItem("plus_token");
-    if (!plusToken) {
-      Alert.alert(t("common.memberFeature"), t("common.loginFirst"), [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("personalPage.memberLogin"),
-          onPress: () => router.push("/member-login" as any),
-        },
-      ]);
-      return;
-    }
-
+    // [MODIFIED] 移除会员登录/VIP 校验，TTS 所有用户可用
     if (isPlusVip) {
       trackEvent({
         feature: "tts",

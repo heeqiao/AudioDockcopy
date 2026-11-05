@@ -86,7 +86,7 @@ export default function SettingsScreen() {
     desktopLyricsEnabled,
     updateSetting,
   } = useSettings();
-  const [isVip, setIsVip] = React.useState(false);
+  const [isVip, setIsVip] = React.useState(true); // [MODIFIED] 始终为永久会员
   const [screenInsetModalVisible, setScreenInsetModalVisible] =
     React.useState(false);
   const [redeemingInternalTestCode, setRedeemingInternalTestCode] =
@@ -228,26 +228,7 @@ export default function SettingsScreen() {
   );
 
   const handleToggleCarMode = async (val: boolean) => {
-    if (val) {
-      const currentPlusToken = await AsyncStorage.getItem("plus_token");
-      if (!currentPlusToken) {
-        Alert.alert(t("common.memberFeature"), t("common.loginFirst"), [
-          { text: t("common.cancel"), style: "cancel" },
-          { text: t("settings.goToMemberPage"), onPress: () => router.push("/member-login" as any) },
-        ]);
-        return;
-      }
-      if (!isVip) {
-        Alert.alert(t("settings.vipOnly"), t("settings.carModeVipOnly"), [
-          { text: t("common.ok") },
-          {
-            text: t("settings.goToMemberPage"),
-            onPress: () => router.push("/member-benefits" as any),
-          },
-        ]);
-        return;
-      }
-    }
+    // [MODIFIED] 移除 VIP/会员检查，所有用户可用
     await updateSetting("carModeEnabled", val);
     await updateSetting("carLayoutMode", val);
     trackEvent({
@@ -262,26 +243,7 @@ export default function SettingsScreen() {
   };
 
   const handleToggleVoiceAssistant = async (val: boolean) => {
-    if (val) {
-      const currentPlusToken = await AsyncStorage.getItem("plus_token");
-      if (!currentPlusToken) {
-        Alert.alert(t("common.memberFeature"), t("common.loginFirst"), [
-          { text: t("common.cancel"), style: "cancel" },
-          { text: t("settings.goToMemberPage"), onPress: () => router.push("/member-login" as any) },
-        ]);
-        return;
-      }
-      if (!isVip) {
-        Alert.alert(t("settings.vipOnly"), t("settings.voiceAssistantVipOnly"), [
-          { text: t("common.ok") },
-          {
-            text: t("settings.goToMemberPage"),
-            onPress: () => router.push("/member-benefits" as any),
-          },
-        ]);
-        return;
-      }
-    }
+    // [MODIFIED] 移除 VIP/会员检查，所有用户可用
     await updateSetting("voiceAssistantEnabled", val);
     trackEvent({
       feature: "voice",
@@ -332,14 +294,7 @@ export default function SettingsScreen() {
   };
 
   const handleRedeemInternalTestCode = async () => {
-    if (isVip) {
-      Alert.alert(
-        t("settings.betaTestAlreadyHas"),
-        t("settings.betaTestAlreadyHas"),
-      );
-      return;
-    }
-
+    // [MODIFIED] 移除 VIP 短路，内测码入口始终可用（服务端自行判定是否重复参与）
     const plusUserId = await AsyncStorage.getItem("plus_user_id");
     if (!plusUserId) {
       Alert.alert(t("settings.loginFirst"), t("settings.loginMemberFirst"));
@@ -430,8 +385,9 @@ export default function SettingsScreen() {
               }
 
               await setPlusToken(null);
-              await syncWidgetMembership(false);
-              setIsVip(false);
+              // [MODIFIED] 注销账号后仍保持永久会员状态，无任何限制
+              await syncWidgetMembership(true);
+              setIsVip(true);
               Alert.alert(
                 t("settings.deleteMemberSuccess"),
                 t("settings.deleteMemberSuccess"),

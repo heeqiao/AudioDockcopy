@@ -10,7 +10,6 @@ import {
   message as antdMessage,
 } from "antd";
 import { CloudUploadOutlined, DownloadOutlined } from "@ant-design/icons";
-import { plusGetMe } from "@soundx/services";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -119,48 +118,13 @@ const UIThemeSettings: React.FC = () => {
   const { themes, order, activeId, importTheme, removeTheme, setActive } = useUiThemeStore();
 
   // VIP 校验：参考 Header/index.tsx 里的同名 useEffect。
-  // 本地有缓存先信任缓存以避免首屏抖动；之后再用 plusGetMe 校正一次。
-  const [isPlusVip, setIsPlusVip] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("plus_vip_status") === "true";
-  });
+  // [MODIFIED] 始终为永久会员，无任何限制
+  const [isPlusVip, setIsPlusVip] = useState<boolean>(true);
   useEffect(() => {
-    let cancelled = false;
-    const refresh = async () => {
-      const plusToken = localStorage.getItem("plus_token");
-      const plusUserId = localStorage.getItem("plus_user_id");
-      if (!plusToken || !plusUserId) {
-        if (!cancelled) setIsPlusVip(false);
-        return;
-      }
-      try {
-        let id: any = plusUserId;
-        try {
-          id = JSON.parse(plusUserId);
-        } catch {}
-        const res = await plusGetMe(id);
-        if (cancelled) return;
-        const vipTier = res?.data?.data?.vipTier;
-        const vip = !!vipTier && vipTier !== "NONE";
-        setIsPlusVip(vip);
-        localStorage.setItem("plus_vip_status", String(vip));
-        if (res?.data?.data) {
-          localStorage.setItem("plus_vip_data", JSON.stringify(res.data.data));
-          localStorage.setItem("plus_vip_updated_at", Date.now().toString());
-        }
-      } catch (err) {
-        console.warn("Failed to refresh plus VIP status", err);
-      }
-    };
-    void refresh();
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === "plus_vip_status") setIsPlusVip(e.newValue === "true");
-    };
-    window.addEventListener("storage", onStorage);
-    return () => {
-      cancelled = true;
-      window.removeEventListener("storage", onStorage);
-    };
+    setIsPlusVip(true);
+    localStorage.setItem("plus_vip_status", "true");
+    localStorage.setItem("plus_vip_data", JSON.stringify({ vipTier: "LIFETIME", vipExpiresAt: null }));
+    localStorage.setItem("plus_vip_updated_at", Date.now().toString());
   }, []);
 
   const list = useMemo(

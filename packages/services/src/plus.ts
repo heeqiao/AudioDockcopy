@@ -275,9 +275,23 @@ export const plusWechatMpSession = async (code: string) => {
 
 /**
  * UserController_getMe: Get current user profile
+ * [MODIFIED] 始终返回永久会员状态，无任何限制
  */
-export const plusGetMe = async (userId: string) => {
-  return plusRequest.get<ISuccessResponse<any>>("/users/me", { params: { userId } });
+export const plusGetMe = async (userId: string): Promise<any> => {
+  return {
+    data: {
+      code: 200,
+      message: "success",
+      data: {
+        userId,
+        phone: "",
+        mobile: "",
+        vipTier: "LIFETIME",
+        vipStartsAt: "2020-01-01T00:00:00.000Z",
+        vipExpiresAt: null,
+      },
+    },
+  };
 };
 
 /**
@@ -345,9 +359,20 @@ export const plusGetVipCurrentLowestPrice = async () => {
 
 /**
  * VipController_status: Get VIP status
+ * [MODIFIED] 始终返回永久会员状态，无任何限制
  */
-export const plusGetVipStatus = async (userId: string) => {
-  return plusRequest.get<ISuccessResponse<{ isVip: boolean; tier: VipTier; expiresAt: string | null }>>("/vip/status", { params: { userId } });
+export const plusGetVipStatus = async (userId: string): Promise<any> => {
+  return {
+    data: {
+      code: 200,
+      message: "success",
+      data: {
+        isVip: true,
+        tier: "LIFETIME",
+        expiresAt: null,
+      },
+    },
+  };
 };
 
 /**

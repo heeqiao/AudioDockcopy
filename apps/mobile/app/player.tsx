@@ -22,7 +22,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Slider } from "@miblanchard/react-native-slider";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getMvByTrackId, plusGetMe, toggleTrackLike, toggleTrackUnLike } from "@soundx/services";
+import { getMvByTrackId, toggleTrackLike, toggleTrackUnLike } from "@soundx/services";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -35,7 +35,6 @@ import {
   Image,
   Modal,
   PanResponder,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -382,7 +381,7 @@ export function PlayerDetailView({
   const [syncCheckLoading, setSyncCheckLoading] = useState(false);
   const { user, device, setPlusToken } = useAuth();
   const { t } = useTranslation();
-  const [isVip, setIsVip] = useState(false);
+  const [isVip, setIsVip] = useState(true); // [MODIFIED] 始终为永久会员
   const [lyricFontSize, setLyricFontSize] = useState(16);
   const [controlsBottomOffset, setControlsBottomOffset] = useState(0);
   // 有声书快捷操作（封面下方置顶按钮组）：跳过片头/片尾弹窗状态
@@ -411,20 +410,8 @@ export function PlayerDetailView({
   }, [embedded, closePlayer]);
 
   useEffect(() => {
-    const loadVipStatus = async () => {
-      const status = await AsyncStorage.getItem("plus_vip_status");
-      const data = await AsyncStorage.getItem("plus_vip_data");
-      let vip = status === "true";
-      if (!vip && data) {
-        try {
-          const parsed = JSON.parse(data);
-          vip = !!(parsed?.vipTier && parsed.vipTier !== "NONE");
-        } catch {}
-      }
-      setIsVip(vip);
-    };
-
-    loadVipStatus();
+    // [MODIFIED] 始终为永久会员，无需异步加载
+    setIsVip(true);
   }, []);
 
   const handleSyncPress = async () => {
@@ -437,44 +424,8 @@ export function PlayerDetailView({
 
     setSyncCheckLoading(true);
     try {
-      const plusToken = await AsyncStorage.getItem("plus_token");
-      const plusUserId = await AsyncStorage.getItem("plus_user_id");
-      if (!plusToken || !plusUserId) {
-        Alert.alert(t("playerPage.notice"), t("playerPage.vipFeatureOnly"), [
-          { text: t("common.cancel"), style: "cancel" },
-          ...(Platform.OS !== "ios"
-            ? [{
-                text: t("playerPage.activateNow"),
-                onPress: () => router.push("/member-benefits" as any),
-                style: "default" as const,
-              }]
-            : []),
-        ]);
-        return;
-      }
-
-      await setPlusToken(plusToken);
-      let id: any = plusUserId;
-      try {
-        id = JSON.parse(plusUserId);
-      } catch {}
-      const res = await plusGetMe(id);
-      const vipTier = res?.data?.data?.vipTier;
-      const isVip = vipTier && vipTier !== "NONE";
-      if (isVip) {
-        setSyncModalVisible(true);
-      } else {
-        Alert.alert(t("playerPage.notice"), t("playerPage.vipFeatureOnly"), [
-          { text: t("common.cancel"), style: "cancel" },
-          ...(Platform.OS !== "ios"
-            ? [{
-                text: t("playerPage.activateNow"),
-                onPress: () => router.push("/member-benefits" as any),
-                style: "default" as const,
-              }]
-            : []),
-        ]);
-      }
+      // [MODIFIED] 跳过 VIP 检查，直接打开同步弹窗
+      setSyncModalVisible(true);
     } catch (error) {
       console.warn("Failed to check VIP status", error);
       Alert.alert(t("playerPage.notice"), t("playerPage.vipStatusFailed"));

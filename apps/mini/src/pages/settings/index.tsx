@@ -34,11 +34,12 @@ export default function Settings() {
 
   const [showScreenInsetModal, setShowScreenInsetModal] = useState(false);
   const [redeemingInternalTestCode, setRedeemingInternalTestCode] = useState(false);
-  const [isVip, setIsVip] = useState(false);
+  const [isVip, setIsVip] = useState(true); // [MODIFIED] 始终为永久会员
 
   useEffect(() => {
-    const isVipStr = Taro.getStorageSync('plus_vip_status');
-    setIsVip(isVipStr === 'true');
+    // [MODIFIED] 始终为永久会员
+    setIsVip(true);
+    Taro.setStorageSync('plus_vip_status', 'true');
   }, []);
 
   const handleLogout = () => {
@@ -55,20 +56,7 @@ export default function Settings() {
   };
 
   const handleToggleCarMode = (val: boolean) => {
-    if (val && !isVip) {
-      Taro.showModal({
-        title: t('settings.vipOnly'),
-        content: t('settings.carModeVipOnly'),
-        confirmText: t('settings.goToMemberPage'),
-        cancelText: t('common.cancel'),
-        success: (res) => {
-          if (res.confirm) {
-            Taro.navigateTo({ url: '/pages/member/benefits/index' });
-          }
-        }
-      });
-      return;
-    }
+    // [MODIFIED] 移除 VIP 检查，所有用户可用
     updateSetting('carModeEnabled', val);
     updateSetting('carLayoutMode', val);
     if (val) {
@@ -77,20 +65,7 @@ export default function Settings() {
   };
 
   const handleToggleVoiceAssistant = (val: boolean) => {
-    if (val && !isVip) {
-      Taro.showModal({
-        title: t('settings.vipOnly'),
-        content: t('settings.voiceAssistantVipOnly'),
-        confirmText: t('settings.goToMemberPage'),
-        cancelText: t('common.cancel'),
-        success: (res) => {
-          if (res.confirm) {
-            Taro.navigateTo({ url: '/pages/member/benefits/index' });
-          }
-        }
-      });
-      return;
-    }
+    // [MODIFIED] 移除 VIP 检查，所有用户可用
     updateSetting('voiceAssistantEnabled', val);
   };
 
@@ -109,11 +84,7 @@ export default function Settings() {
   const carModeActive = carLayoutMode || carModeEnabled;
 
   const handleRedeemInternalTestCode = async () => {
-    if (isVip) {
-      Taro.showToast({ title: t('settings.betaTestAlreadyHas'), icon: 'none' });
-      return;
-    }
-
+    // [MODIFIED] 移除 VIP 短路，内测码入口始终可用（服务端自行判定是否重复参与）
     const plusUserId = Taro.getStorageSync('plus_user_id');
     if (!plusUserId) {
       Taro.showToast({ title: t('settings.loginFirst'), icon: 'none' });
@@ -175,8 +146,9 @@ export default function Settings() {
             }
             Taro.removeStorageSync('plus_token');
             Taro.removeStorageSync('plus_user_id');
-            Taro.removeStorageSync('plus_vip_status');
-            setIsVip(false);
+            // [MODIFIED] 仍保持永久会员状态，无任何限制
+            Taro.setStorageSync('plus_vip_status', 'true');
+            setIsVip(true);
             Taro.showToast({ title: t('settings.deleteMemberSuccess'), icon: 'success' });
           } catch (error: any) {
             Taro.showToast({ title: error.message || t('settings.deleteMemberFailed'), icon: 'none' });

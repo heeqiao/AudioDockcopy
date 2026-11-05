@@ -1,4 +1,3 @@
-import { plusGetMe, setPlusToken } from '@soundx/services';
 import { Text, View } from '@tarojs/components';
 import Taro, { useRouter } from '@tarojs/taro';
 import { useEffect, useMemo, useState } from 'react';
@@ -24,34 +23,11 @@ export default function MemberPaymentSuccess() {
 
   useEffect(() => {
     const refreshVipStatus = async () => {
-      try {
-        const plusToken = Taro.getStorageSync('plus_token');
-        const plusUserId = Taro.getStorageSync('plus_user_id');
-        if (!plusToken || !plusUserId) {
-          setRefreshing(false);
-          return;
-        }
-
-        setPlusToken(plusToken);
-
-        let id: any = plusUserId;
-        try {
-          id = JSON.parse(plusUserId);
-        } catch {}
-
-        const res = await plusGetMe(id);
-        const vipTier = res?.data?.data?.vipTier;
-        const isVip = vipTier && vipTier !== 'NONE';
-        if (isVip) {
-          Taro.setStorageSync('plus_vip_status', 'true');
-          Taro.setStorageSync('plus_vip_data', JSON.stringify(res.data.data || {}));
-          Taro.setStorageSync('plus_vip_updated_at', Date.now().toString());
-        }
-      } catch (error) {
-        console.warn('Failed to refresh vip status', error);
-      } finally {
-        setRefreshing(false);
-      }
+      // [MODIFIED] 始终为永久会员
+      Taro.setStorageSync('plus_vip_status', 'true');
+      Taro.setStorageSync('plus_vip_data', JSON.stringify({ vipTier: 'LIFETIME', vipExpiresAt: null }));
+      Taro.setStorageSync('plus_vip_updated_at', Date.now().toString());
+      setRefreshing(false);
     };
 
     refreshVipStatus();

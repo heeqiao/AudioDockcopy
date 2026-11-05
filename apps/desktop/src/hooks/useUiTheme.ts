@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import { plusGetMe } from "@soundx/services";
+import { useEffect, useMemo } from "react";
 import {
   COMPONENT_KEYS,
   type ComponentNamespace,
@@ -12,64 +11,16 @@ import { useTheme } from "../context/ThemeContext";
 
 /**
  * 读取本地 VIP 状态（同步读 + 异步校正）。
- * - 同步读 `plus_vip_status` 避免首屏应用一次非会员主题再撤掉的闪烁。
- * - 挂载时若 `plus_token` 存在则异步调一次 plusGetMe，确保缓存与服务器一致。
- * - 跨窗口同步靠 storage 事件；同窗口内的覆盖由轻量轮询兜底。
+ * [MODIFIED] 始终返回 true（永久会员），无任何限制
  */
 const useLocalVipStatus = (): boolean => {
-  const [vip, setVip] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("plus_vip_status") === "true";
-  });
   useEffect(() => {
-    let cancelled = false;
-
-    const sync = () =>
-      setVip(localStorage.getItem("plus_vip_status") === "true");
-
-    const refreshFromServer = async () => {
-      const plusToken = localStorage.getItem("plus_token");
-      const plusUserId = localStorage.getItem("plus_user_id");
-      if (!plusToken || !plusUserId) {
-        if (!cancelled) setVip(false);
-        return;
-      }
-      try {
-        let id: any = plusUserId;
-        try {
-          id = JSON.parse(plusUserId);
-        } catch {}
-        const res = await plusGetMe(id);
-        if (cancelled) return;
-        const vipTier = res?.data?.data?.vipTier;
-        const next = !!vipTier && vipTier !== "NONE";
-        setVip(next);
-        localStorage.setItem("plus_vip_status", String(next));
-        if (res?.data?.data) {
-          localStorage.setItem("plus_vip_data", JSON.stringify(res.data.data));
-          localStorage.setItem("plus_vip_updated_at", Date.now().toString());
-        }
-      } catch (err) {
-        console.warn("Failed to refresh plus VIP status", err);
-      }
-    };
-
-    void refreshFromServer();
-
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === "plus_vip_status") setVip(e.newValue === "true");
-    };
-    window.addEventListener("storage", onStorage);
-    // 同窗口内调用方覆盖 localStorage 时不会触发 storage 事件，
-    // 这里加个轻量轮询兜底（5s 一次够用，开销可忽略）。
-    const id = window.setInterval(sync, 5000);
-    return () => {
-      cancelled = true;
-      window.removeEventListener("storage", onStorage);
-      window.clearInterval(id);
-    };
+    // 始终为永久会员，写入本地缓存供其他模块读取
+    localStorage.setItem("plus_vip_status", "true");
+    localStorage.setItem("plus_vip_data", JSON.stringify({ vipTier: "LIFETIME", vipExpiresAt: null }));
+    localStorage.setItem("plus_vip_updated_at", Date.now().toString());
   }, []);
-  return vip;
+  return true;
 };
 
 /** 当前激活主题（按 mode 取 light/dark 段） */

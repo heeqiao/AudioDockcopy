@@ -4,15 +4,13 @@ import picker from '@ohos.file.picker';
 import { kvStore } from 'features_storage';
 import { t } from 'features_i18n';
 import { Logger } from 'audiodock_common';
-import { playlistApi, userDataApi, plusApi, setPlusAuthToken, userApi, taskApi } from 'features_network';
+import { playlistApi, userDataApi, userApi, taskApi } from 'features_network';
 import type { PlaylistDto, TrackDto, AlbumDto, ImportTask, ImportTaskMode } from 'features_network';
 import { AppIcon, AppIconName } from '../components/AppIcon';
 import { XiaoAiIcon } from '../components/XiaoAiIcon';
 import { CoverImage } from '../components/CoverImage';
 import { authStore } from '../context/AuthStore';
 import { resolveTrackToPlayer, playQueueFast } from '../services/trackResolver';
-import { playerStore } from '../context/PlayerStore';
-import type { Track } from '../context/PlayerStore';
 import { getDownloadedTracks, removeDownloadedTrack } from '../services/downloadService';
 import type { DownloadedMeta } from '../services/downloadService';
 import { buildTheme } from 'features_ui';
@@ -152,7 +150,7 @@ export struct PersonalTab {
   @State createModalVisible: boolean = false;
   @State newPlaylistName: string = '';
   @State creating: boolean = false;
-  @State isPlusVip: boolean = false;
+  @State isPlusVip: boolean = true; // [MODIFIED] 始终为永久会员
   // 会员体系登录态（plus_token 是否存在），驱动皇冠三段显隐：
   // 未登录 → 展示灰色皇冠引导会员登录；已登录会员 → 金色皇冠；已登录非会员 → 隐藏。
   @State isPlusLoggedIn: boolean = false;
@@ -210,18 +208,10 @@ export struct PersonalTab {
   }
 
   private async loadVipStatus(): Promise<void> {
-    try {
-      const plusToken = await kvStore.get('plus_token');
-      this.isPlusLoggedIn = !!plusToken && plusToken.length > 0;
-      const plusUserId = await kvStore.get('plus_user_id');
-      if (plusUserId !== null && plusUserId.length > 0) {
-        if (plusToken) setPlusAuthToken(plusToken);
-        const profile = await plusApi.getMe(plusUserId);
-        this.isPlusVip = !!profile.vipTier && profile.vipTier !== 'NONE';
-      }
-    } catch (e) {
-      Logger.w('PersonalTab', `loadVipStatus failed: ${String(e)}`);
-    }
+    // [MODIFIED] 始终为永久会员，无任何限制
+    const plusToken = await kvStore.get('plus_token');
+    this.isPlusLoggedIn = !!plusToken && plusToken.length > 0;
+    this.isPlusVip = true;
   }
 
   async loadData(): Promise<void> {
@@ -378,68 +368,14 @@ export struct PersonalTab {
     jumpToAppMarket(getContext(this));
   }
 
-  // 对齐 mobile handleOpenTtsTasks：校验会员登录与 VIP 状态后进入 TTS 任务列表。
+  // [MODIFIED] 移除会员登录/VIP 校验，TTS 所有用户可用
   async openTtsTasks(): Promise<void> {
-    const plusToken = await kvStore.get('plus_token');
-    if (!plusToken) {
-      promptAction.showDialog({
-        title: t('common.memberFeature'),
-        message: t('common.loginFirst'),
-        buttons: [
-          { text: t('common.cancel'), color: this.theme.colors.textSecondary },
-          { text: t('personalPage.memberLogin'), color: this.theme.colors.primary },
-        ],
-      }).then((res) => {
-        if (res.index === 1) {
-          router.pushUrl({ url: 'pages/MemberLoginPage' });
-        }
-      });
-      return;
-    }
-    if (this.isPlusVip) {
-      router.pushUrl({ url: 'pages/TtsTaskListPage' });
-      return;
-    }
-    // [软下线] 去开通入口已隐藏，仅保留会员功能提示。恢复时还原 goActivate 按钮与跳 MemberBenefitsPage 的 then 分支。
-    promptAction.showDialog({
-      title: t('common.memberFeature'),
-      message: t('common.ttsVipRequired'),
-      buttons: [
-        { text: t('common.cancel'), color: this.theme.colors.textSecondary },
-      ],
-    });
+    router.pushUrl({ url: 'pages/TtsTaskListPage' });
   }
 
-  // 扫码登录入口：VIP 校验 + 跳转 ScanPage
+  // [MODIFIED] 移除会员登录/VIP 校验，扫码登录所有用户可用
   async handleOpenScanEntry(): Promise<void> {
-    const plusToken = await kvStore.get('plus_token');
-    if (!plusToken) {
-      promptAction.showDialog({
-        title: t('personalPage.memberOnlyTitle'),
-        message: t('personalPage.scanLoginMemberOnly'),
-        buttons: [
-          { text: t('common.cancel'), color: this.theme.colors.textSecondary },
-          { text: t('personalPage.memberLogin'), color: this.theme.colors.primary },
-        ],
-      }).then((res) => {
-        if (res.index === 1) {
-          router.pushUrl({ url: 'pages/MemberLoginPage' });
-        }
-      });
-      return;
-    }
-    if (this.isPlusVip) {
-      router.pushUrl({ url: 'pages/ScanPage' });
-      return;
-    }
-    // [软下线] 去开通入口已隐藏，仅保留会员功能提示。恢复时还原 goActivate 按钮与跳 MemberBenefitsPage 的 then 分支。
-    promptAction.showDialog({
-      title: t('personalPage.memberOnlyTitle'),
-      message: t('personalPage.scanLoginVipRequired'),
-      buttons: [
-        { text: t('common.cancel'), color: this.theme.colors.textSecondary },
-      ],
-    });
+    router.pushUrl({ url: 'pages/ScanPage' });
   }
 
   // 任务中心入口：目前还没有 TaskCenterPage，提示后续接入

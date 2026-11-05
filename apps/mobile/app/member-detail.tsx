@@ -1,9 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { plusGetMe } from "@soundx/services";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
@@ -42,27 +40,10 @@ export default function MemberDetailScreen() {
   }, []);
 
   const fetchVipStatus = async () => {
-    try {
-      const plusUserId = await AsyncStorage.getItem("plus_user_id");
-      if (plusUserId) {
-        let id = plusUserId;
-        try {
-          id = JSON.parse(plusUserId);
-        } catch (e) {}
-
-        const res = await plusGetMe(id);
-        if (res.data.code === 200 && res.data.data) {
-          setVipData(res.data.data);
-          await syncWidgetMembership(
-            !!(res.data.data.vipTier && res.data.data.vipTier !== "NONE")
-          );
-        }
-      }
-    } catch (err) {
-      console.error("Failed to fetch plus profile", err);
-    } finally {
-      setLoading(false);
-    }
+    // [MODIFIED] 始终返回永久会员数据
+    setVipData({ vipTier: "LIFETIME", vipExpiresAt: null } as any);
+    await syncWidgetMembership(true);
+    setLoading(false);
   };
 
   const handleLogout = () => {

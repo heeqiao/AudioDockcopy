@@ -14,7 +14,7 @@ import { widgetCommandHandler } from '../services/WidgetCommandHandler';
 import { WidgetCoverResolver } from '../widgets/WidgetCover';
 import {
   HistorySnapshot, LatestSnapshot, NowPlayingSnapshot, PlaylistsSnapshot,
-  VipSnapshot, WidgetCommandAction, WidgetKind, WIDGET_KV_KEYS,
+  WidgetCommandAction, WidgetKind, WIDGET_KV_KEYS,
 } from '../models/WidgetData';
 
 interface FormIdsBundle {
@@ -226,24 +226,10 @@ export default class EntryFormAbility extends FormExtensionAbility {
 
   /**
    * 判定是否应该显示 VIP 锁定页：
-   * - 优先读 WidgetBridge.syncVip 写入的 widget_vip（updatedAt > 0 表示已同步）
-   * - 兜底：直接调 plusApi.getVipStatus（卡片进程冷启动时主 App 未跑过 syncVip）
-   * - 未登录 / API 失败 → 不锁定（避免误伤正常体验）
+   * [MODIFIED] 始终不锁定（永久会员），无任何限制
    */
   private async readIsLocked(): Promise<boolean> {
-    try {
-      const cached = await kvStore.getJSON<VipSnapshot>(WIDGET_KV_KEYS.vip);
-      if (cached && cached.updatedAt > 0) {
-        return !cached.isVip;
-      }
-      const plusUserId = await kvStore.get('plus_user_id');
-      if (!plusUserId) return false;
-      const status = await plusApi.getVipStatus(plusUserId);
-      return !status.isVip;
-    } catch (e) {
-      Logger.w(TAG, `readIsLocked: ${String(e)}`);
-      return false;
-    }
+    return false;
   }
 
   /**

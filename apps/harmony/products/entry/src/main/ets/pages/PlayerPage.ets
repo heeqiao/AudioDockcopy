@@ -5,7 +5,7 @@ import { buildTheme } from 'features_ui';
 import type { Theme, ThemeMode } from 'features_ui';
 import { t, getLang } from 'features_i18n';
 import { formatDuration, Logger } from 'audiodock_common';
-import { trackApi, playlistApi, artistApi, albumApi, miApi, plusApi, setPlusAuthToken, deviceApi, mvApi } from 'features_network';
+import { trackApi, playlistApi, artistApi, albumApi, miApi, deviceApi, mvApi } from 'features_network';
 import type { PlaylistDto, ArtistDto, AlbumDto, MiDevice, TrackDto, OnlineDevice, MVDto, PlaybackQualityOption, PlaybackQualityProfile } from 'features_network';
 import { kvStore } from 'features_storage';
 import type { LyricLine } from 'features_player';
@@ -178,7 +178,7 @@ struct PlayerPage {
   // [修复 2] 同步控制入口常驻（不再软下线）。isPlusVip 仍用于：
   // - 加载状态（页面打开时拉一次 plus profile）
   // - 非会员点击 sync 时弹"开通 Plus"对话框（对齐 mobile player.tsx handleSyncPress 的 VIP 校验）
-  @State private isPlusVip: boolean = false;
+  @State private isPlusVip: boolean = true; // [MODIFIED] 始终为永久会员
   private unsubSync: (() => void) | null = null;
   private unsubPlayerLeft: (() => void) | null = null;
   @StorageLink('themeMode') @Watch('onThemeModeChange') themeMode: ThemeMode = 'light';
@@ -403,19 +403,9 @@ struct PlayerPage {
 
   // [软下线] 校验 plus VIP 状态，驱动同步控制入口的显隐（对齐 PersonalPage.loadVipStatus）
   private async loadVipStatus(): Promise<void> {
-    try {
-      const plusUserId = await kvStore.get('plus_user_id');
-      if (plusUserId !== null && plusUserId.length > 0) {
-        const token = await kvStore.get('plus_token');
-        if (token) setPlusAuthToken(token);
-        const profile = await plusApi.getMe(plusUserId);
-        this.isPlusVip = !!profile.vipTier && profile.vipTier !== 'NONE';
-        // VIP 状态就位后刷新主题 token（对齐 mobile useLocalVipStatus 门架）
-        this.refreshPlayerTheme();
-      }
-    } catch (e) {
-      Logger.w('PlayerPage', `loadVipStatus failed: ${String(e)}`);
-    }
+    // [MODIFIED] 始终为永久会员，无任何限制
+    this.isPlusVip = true;
+    this.refreshPlayerTheme();
   }
 
   aboutToDisappear(): void {
@@ -991,49 +981,8 @@ struct PlayerPage {
       this.confirmLeaveSync();
       return;
     }
-    this.syncCheckLoading = true;
-    try {
-      const plusToken = await kvStore.get('plus_token');
-      const plusUserId = await kvStore.get('plus_user_id');
-      if (!plusToken || !plusUserId) {
-        await promptAction.showDialog({
-          title: t('playerPage.notice'),
-          message: t('playerPage.vipFeatureOnly'),
-          buttons: [
-            { text: t('common.cancel'), color: '#888' },
-            { text: t('playerPage.activateNow'), color: '#3F51B5' },
-          ],
-        }).catch(() => undefined);
-        // ArkUI 的 showDialog 不返回 button index；按 mobile 行为简单提示，跳转交由用户主动去 PersonalPage
-        return;
-      }
-      setPlusAuthToken(plusToken);
-      let id: string = plusUserId;
-      try {
-        const parsed = JSON.parse(plusUserId) as string;
-        if (parsed) id = parsed;
-      } catch { /* keep raw */ }
-      const profile = await plusApi.getMe(id);
-      const vipTier = profile?.vipTier;
-      const isVip = !!vipTier && vipTier !== 'NONE';
-      if (isVip) {
-        this.showSyncInvite = true;
-      } else {
-        await promptAction.showDialog({
-          title: t('playerPage.notice'),
-          message: t('playerPage.vipFeatureOnly'),
-          buttons: [
-            { text: t('common.cancel'), color: '#888' },
-            { text: t('playerPage.activateNow'), color: '#3F51B5' },
-          ],
-        }).catch(() => undefined);
-      }
-    } catch (e) {
-      Logger.w('PlayerPage', `VIP check failed: ${String(e)}`);
-      promptAction.showToast({ message: t('playerPage.vipStatusFailed') });
-    } finally {
-      this.syncCheckLoading = false;
-    }
+    // [MODIFIED] 移除 VIP 校验，直接打开同步弹窗，无任何限制
+    this.showSyncInvite = true;
   }
 
   /** 已同步时弹确认；用户点确认后断开并清空 SyncStore。 */

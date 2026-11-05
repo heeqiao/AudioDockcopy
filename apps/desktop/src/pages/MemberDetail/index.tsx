@@ -5,7 +5,6 @@ import {
   CrownFilled,
   LogoutOutlined,
 } from "@ant-design/icons";
-import { plusGetMe } from "@soundx/services";
 import { Button, Card, Flex, Skeleton, Table, Typography, theme } from "antd";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -32,38 +31,13 @@ const MemberDetail: React.FC = () => {
 
   useEffect(() => {
     const fetchVipStatus = async () => {
-      try {
-        const plusUserId = localStorage.getItem("plus_user_id");
-        const storedPlusToken = localStorage.getItem("plus_token");
-        if (!plusUserId || !storedPlusToken) {
-          setLoading(false);
-          return;
-        }
-
-        let id: any = plusUserId;
-        try {
-          id = JSON.parse(plusUserId);
-        } catch {}
-
-        const res = await plusGetMe(id);
-        console.log("Fetched member profile", res);
-        if (res.data.code === 200 && res.data.data) {
-          setVipData(res.data.data);
-          localStorage.setItem("plus_vip_data", JSON.stringify(res.data.data));
-          localStorage.setItem(
-            "plus_vip_status",
-            String(
-              !!(res.data.data.vipTier && res.data.data.vipTier !== "NONE"),
-            ),
-          );
-          localStorage.setItem("plus_vip_updated_at", Date.now().toString());
-        }
-      } catch (error) {
-        console.error("Failed to fetch plus profile", error);
-        message.error("获取会员信息失败，请稍后重试");
-      } finally {
-        setLoading(false);
-      }
+      // [MODIFIED] 始终返回永久会员数据
+      const fakeVipData = { vipTier: "LIFETIME", vipExpiresAt: null };
+      setVipData(fakeVipData);
+      localStorage.setItem("plus_vip_data", JSON.stringify(fakeVipData));
+      localStorage.setItem("plus_vip_status", "true");
+      localStorage.setItem("plus_vip_updated_at", Date.now().toString());
+      setLoading(false);
     };
 
     fetchVipStatus();

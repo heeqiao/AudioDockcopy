@@ -120,9 +120,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       removePlusServiceToken();
       localStorage.removeItem("plus_token");
       localStorage.removeItem("plus_user_id");
-      localStorage.removeItem("plus_vip_status");
-      localStorage.removeItem("plus_vip_data");
-      localStorage.removeItem("plus_vip_updated_at");
+      // [MODIFIED] 退出登录后仍保持永久会员状态，无任何限制
+      localStorage.setItem("plus_vip_status", "true");
+      localStorage.setItem("plus_vip_data", JSON.stringify({ vipTier: "LIFETIME", vipExpiresAt: null }));
+      localStorage.setItem("plus_vip_updated_at", Date.now().toString());
     }
     set({ plusToken: token });
   },

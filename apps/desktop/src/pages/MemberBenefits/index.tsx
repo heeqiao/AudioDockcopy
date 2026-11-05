@@ -197,37 +197,11 @@ const MemberBenefits: React.FC = () => {
     new Promise((resolve) => window.setTimeout(resolve, ms));
 
   const refreshVipStatus = async (): Promise<boolean> => {
-    try {
-      const plusToken = localStorage.getItem("plus_token");
-      const plusUserId = localStorage.getItem("plus_user_id");
-      if (!plusToken || !plusUserId) {
-        return false;
-      }
-
-      setMemberToken(plusToken);
-      let id: any = plusUserId;
-      try {
-        id = JSON.parse(plusUserId);
-      } catch {}
-
-      const res = await plusGetMe(id);
-      const vipTier = res?.data?.data?.vipTier;
-      const isVip = !!vipTier && vipTier !== "NONE";
-      if (!isVip) {
-        return false;
-      }
-
-      localStorage.setItem("plus_vip_status", "true");
-      localStorage.setItem(
-        "plus_vip_data",
-        JSON.stringify(res.data.data || {}),
-      );
-      localStorage.setItem("plus_vip_updated_at", Date.now().toString());
-      return true;
-    } catch (error) {
-      console.warn("Failed to refresh vip status", error);
-      return false;
-    }
+    // [MODIFIED] 始终返回 true（永久会员）
+    localStorage.setItem("plus_vip_status", "true");
+    localStorage.setItem("plus_vip_data", JSON.stringify({ vipTier: "LIFETIME", vipExpiresAt: null }));
+    localStorage.setItem("plus_vip_updated_at", Date.now().toString());
+    return true;
   };
 
   const waitForVipActivation = async () => {

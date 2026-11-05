@@ -14,7 +14,7 @@ import {
 } from "@soundx/services";
 import * as Device from 'expo-device';
 import { addNetworkStateListener } from 'expo-network';
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { AppState } from "react-native";
 import { getBaseURL, initBaseURL, setBaseURL } from "../https";
 import { refreshNetworkMode } from "../utils/networkMode";
@@ -422,9 +422,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     } else {
       removePlusServiceToken();
       await AsyncStorage.removeItem("plus_token");
-      await AsyncStorage.removeItem("plus_vip_status");
-      await AsyncStorage.removeItem("plus_vip_data");
-      await AsyncStorage.removeItem("plus_vip_updated_at");
+      // [MODIFIED] 退出登录后仍保持永久会员状态，无任何限制
+      await AsyncStorage.setItem("plus_vip_status", "true");
+      await AsyncStorage.setItem("plus_vip_data", JSON.stringify({ vipTier: "LIFETIME", vipExpiresAt: null }));
+      await AsyncStorage.setItem("plus_vip_updated_at", Date.now().toString());
       await AsyncStorage.removeItem("plus_user_id");
     }
   };

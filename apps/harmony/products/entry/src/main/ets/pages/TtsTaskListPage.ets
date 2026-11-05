@@ -1,9 +1,8 @@
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
-import { kvStore } from 'features_storage';
 import { t, getLang } from 'features_i18n';
 import { Logger } from 'audiodock_common';
-import { ttsApi, plusApi } from 'features_network';
+import { ttsApi } from 'features_network';
 import type { TtsTask } from 'features_network';
 import { buildTheme } from 'features_ui';
 import type { Theme, ThemeMode } from 'features_ui';
@@ -77,42 +76,8 @@ struct TtsTaskListPage {
   }
 
   async ensureVipAccess(): Promise<boolean> {
-    const plusToken = await kvStore.get('plus_token');
-    const plusUserId = await kvStore.get('plus_user_id');
-    if (!plusToken || !plusUserId) {
-      promptAction.showDialog({
-        title: t('common.memberFeature'),
-        message: t('common.loginFirst'),
-        buttons: [
-          { text: t('common.cancel'), color: this.theme.colors.textSecondary },
-          { text: t('common.goLogin'), color: this.theme.colors.primary },
-        ],
-      }).then((res) => {
-        if (res.index === 1) {
-          router.replaceUrl({ url: 'pages/MemberLoginPage' });
-        }
-      });
-      return false;
-    }
-    try {
-      const profile = await plusApi.getMe(plusUserId);
-      const tier = profile?.vipTier ?? '';
-      if (!tier || tier === 'NONE') {
-        // [软下线] 去开通入口已隐藏，仅保留会员功能提示。恢复时还原 goActivate 按钮与跳 MemberBenefitsPage 的 then 分支。
-        promptAction.showDialog({
-          title: t('common.memberFeature'),
-          message: t('common.ttsVipRequired'),
-          buttons: [
-            { text: t('common.cancel'), color: this.theme.colors.textSecondary },
-          ],
-        });
-        return false;
-      }
-      return true;
-    } catch (e) {
-      Logger.e('TtsTaskList', `vip check failed: ${String(e)}`);
-      return false;
-    }
+    // [MODIFIED] 始终返回 true（永久会员），无任何限制
+    return true;
   }
 
   async fetchTasks(showLoading: boolean): Promise<void> {

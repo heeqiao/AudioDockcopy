@@ -9,7 +9,6 @@
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import pasteboard from '@ohos.pasteboard';
-import { kvStore } from 'features_storage';
 import { Logger } from 'audiodock_common';
 import { buildTheme } from 'features_ui';
 import type { Theme, ThemeMode } from 'features_ui';
@@ -28,7 +27,7 @@ struct PlayerThemePage {
   @StorageProp('statusBarHeightVp') statusBarHeightVp: number = 0;
   @StorageProp('navBarHeightVp') navBarHeightVp: number = 0;
 
-  @State private isVip: boolean = false;
+  @State private isVip: boolean = true; // [MODIFIED] 始终为永久会员
   /** 列表渲染快照：store 通知时整体替换（对齐 PlayerStore 消费模式） */
   @State private themeOrder: string[] = [];
   @State private themeMap: Record<string, PlayerThemePlugin> = {};
@@ -65,24 +64,11 @@ struct PlayerThemePage {
     this.activeId = playerThemeStore.getActiveId();
   }
 
-  /** 与 mobile usePlayerTheme 同一口径的本地 VIP 判定 */
+  /** 与 mobile usePlayerTheme 同一口径的本地 VIP 判定
+   * [MODIFIED] 始终为永久会员
+   */
   private async loadVipStatus(): Promise<void> {
-    try {
-      const status = await kvStore.get('plus_vip_status');
-      let vip = status === 'true';
-      if (!vip) {
-        const data = await kvStore.get('plus_vip_data');
-        if (data !== null) {
-          try {
-            const parsed = JSON.parse(data) as Record<string, Object>;
-            vip = !!parsed['vipTier'] && parsed['vipTier'] !== 'NONE';
-          } catch {}
-        }
-      }
-      this.isVip = vip;
-    } catch (e) {
-      Logger.w(TAG, `loadVipStatus failed: ${String(e)}`);
-    }
+    this.isVip = true;
   }
 
   private handleImport(): void {

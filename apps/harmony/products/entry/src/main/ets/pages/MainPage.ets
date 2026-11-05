@@ -5,7 +5,7 @@ import { kvStore } from 'features_storage';
 import { t, getLang } from 'features_i18n';
 import { Logger } from 'audiodock_common';
 import {
-  artistApi, albumApi, trackApi, userDataApi, plusApi, setPlusAuthToken,
+  artistApi, albumApi, trackApi, userDataApi,
 } from 'features_network';
 import type { ArtistDto, AlbumDto, TrackDto } from 'features_network';
 import { MiniPlayer, miniPlayerHasContent } from '../components/MiniPlayer';
@@ -727,7 +727,7 @@ export struct MainPageContent {
   @State private langAtBuild: string = getLang();
   @State theme: Theme = buildTheme('light');
   @State voiceAssistantEnabled: boolean = false;
-  @State isVip: boolean = false;
+  @State isVip: boolean = true; // [MODIFIED] 始终为永久会员
   // 左侧播放器面板的尺寸（onAreaChange 测量，用于布局计算 / 调试）
   @State carLayoutWidth: number = 0;
   @State carLayoutHeight: number = 0;
@@ -804,15 +804,8 @@ export struct MainPageContent {
     try {
       const enabled = await kvStore.get('voiceAssistantEnabled');
       this.voiceAssistantEnabled = enabled === 'true';
-      const userId = await kvStore.get('plus_user_id');
-      if (userId !== null && userId.length > 0) {
-        const token = await kvStore.get('plus_token');
-        if (token) setPlusAuthToken(token);
-        const profile = await plusApi.getMe(userId);
-        this.isVip = !!profile.vipTier && profile.vipTier !== 'NONE';
-      } else {
-        this.isVip = false;
-      }
+      // [MODIFIED] 始终为永久会员
+      this.isVip = true;
     } catch (e) {
       Logger.w('MainPageContent', `loadVoiceAssistantGate error: ${e}`);
     }

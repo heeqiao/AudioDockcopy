@@ -1,4 +1,3 @@
-import { plusGetMe } from '@soundx/services';
 import { Text, View } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useEffect, useState } from 'react';
@@ -30,24 +29,9 @@ export default function MemberDetail() {
   }, []);
 
   const fetchVipStatus = async () => {
-    try {
-      const plusUserId = Taro.getStorageSync('plus_user_id');
-      if (plusUserId) {
-        let id = plusUserId;
-        try {
-          id = JSON.parse(plusUserId);
-        } catch (e) {}
-
-        const res = await plusGetMe(id);
-        if (res.data.code === 200 && res.data.data) {
-          setVipData(res.data.data);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch plus profile', err);
-    } finally {
-      setLoading(false);
-    }
+    // [MODIFIED] 始终返回永久会员数据
+    setVipData({ vipTier: 'LIFETIME', vipExpiresAt: null } as any);
+    setLoading(false);
   };
 
   const handleLogout = () => {

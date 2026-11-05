@@ -40,10 +40,8 @@ import {
   getSearchHistory,
   hasActiveTasks,
   plusDeleteMe,
-  plusGetMe,
   plusParticipateInternalTest,
   searchAll,
-  setPlusToken as setPlusServiceToken,
   setServiceConfig,
   SOURCEMAP,
   speechToText,
@@ -400,7 +398,7 @@ const Header: React.FC = () => {
   // Import task state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importTask, setImportTask] = useState<ImportTask | null>(null);
-  const [isPlusVip, setIsPlusVip] = useState(false);
+  const [isPlusVip, setIsPlusVip] = useState(true); // [MODIFIED] 始终为永久会员
   const [, setPlusVipData] = useState<any>(null);
   const [redeemingInternalTestCode, setRedeemingInternalTestCode] =
     useState(false);
@@ -774,39 +772,16 @@ const Header: React.FC = () => {
 
   // Fetch Plus VIP status
   useEffect(() => {
-    const plusToken = localStorage.getItem("plus_token");
-    const plusUserId = localStorage.getItem("plus_user_id");
-
-    if (plusToken && plusUserId) {
-      setPlusServiceToken(plusToken);
-      // Remove quotes from JSON.stringify if present (though it's better to use JSON.parse)
-      let id = plusUserId;
-      try {
-        id = JSON.parse(plusUserId);
-      } catch (e) {
-        // fallback
-      }
-
-      plusGetMe(id)
-        .then((res) => {
-          if (res.data.code === 200 && res.data.data) {
-            const vipTier = res.data.data.vipTier;
-            setIsPlusVip(vipTier && vipTier !== "NONE");
-            setPlusVipData(res.data.data);
-          }
-        })
-        .catch((err) => {
-          console.error("Failed to fetch plus profile", err);
-        });
-    }
+    // [MODIFIED] 始终为永久会员
+    setIsPlusVip(true);
+    setPlusVipData({ vipTier: "LIFETIME", vipExpiresAt: null });
+    localStorage.setItem("plus_vip_status", "true");
+    localStorage.setItem("plus_vip_data", JSON.stringify({ vipTier: "LIFETIME", vipExpiresAt: null }));
+    localStorage.setItem("plus_vip_updated_at", Date.now().toString());
   }, []);
 
   const handleRedeemInternalTestCode = async () => {
-    if (isPlusVip) {
-      message.info(t("header.alreadyHasBetaAccess"));
-      return;
-    }
-
+    // [MODIFIED] 移除 VIP 短路，内测码入口始终可用（服务端自行判定是否重复参与）
     const plusUserId = localStorage.getItem("plus_user_id");
     if (!plusUserId) {
       message.error(t("header.pleaseLoginMemberFirstBeta"));
@@ -981,19 +956,7 @@ const Header: React.FC = () => {
               className={styles.actionIcon}
               style={actionIconStyle}
               onClick={() => {
-                const plusToken = localStorage.getItem("plus_token");
-                if (!plusToken) {
-                  message.info(t("common.loginFirst"));
-                  navigate("/member-login");
-                  return;
-                }
-
-                if (!isPlusVip) {
-                  message.info(t("common.vipOnly"));
-                  navigate("/member-benefits");
-                  return;
-                }
-
+                // [MODIFIED] 移除 VIP 检查，所有用户可用
                 trackEvent({
                   feature: "tts",
                   eventName: "tts_task_list_open",

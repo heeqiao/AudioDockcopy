@@ -1,0 +1,193 @@
+# 自用云端编译：不依赖原作者的任何 secrets（MinIO / Docker Hub / Harbor / Apple 证书）
+# 用法：GitHub 仓库 -> Actions -> Self Build (AudioDock) -> Run workflow，选择构建目标。
+# 注意：原仓库自带的 6 个 workflow 是作者发布流水线，fork 后建议先移走，见下方说明。
+#
+# 建议：把本仓库设为 Private（个人非商业自用），不要公开发布去除会员限制的安装包。
+name: Self Build (AudioDock)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "构建目标"
+        required: true
+        default: "windows"
+        type: choice
+        options:
+          - web       # 仅静态 Web，最便宜，顺带用 tsc -b 校验全部类型改动
+          - windows   # Windows x64 安装包 (NSIS .exe)
+          - docker    # NAS 用 Docker 镜像
+          - all
+      push_image:
+        description: "docker: 是否推送镜像到 GHCR（关闭则只构建、不推送）"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ------------------------------------------------------------------
+  # 1) 静态 Web：ubuntu 计费 1x，几分钟完成，用来先验证 TypeScript 改动
+  # ------------------------------------------------------------------
+  web:
+    if: ${{ inputs.target == 'web' || inputs.target == 'all' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm 10.28.1
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          DATABASE_URL: file:./dev.db
+
+      - name: Build workspace packages
+        shell: bash
+        run: |
+          set -e
+          pnpm --filter @soundx/ws run build
+          pnpm --filter @soundx/i18e run build
+          pnpm --filter @soundx/utils run build
+          pnpm --filter @soundx/db run generate
+          pnpm --filter @soundx/db run build
+          pnpm --filter @soundx/services run build
+        env:
+          DATABASE_URL: file:./dev.db
+
+      - name: Build desktop web (tsc -b + vite build)
+        run: pnpm --filter sound-x run build:web
+
+      - name: Upload web bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: AudioDock-Web
+          path: apps/desktop/dist
+          if-no-files-found: error
+          retention-days: 14
+
+  # ------------------------------------------------------------------
+  # 2) Windows 桌面安装包：windows-latest 自带 Rust / MSVC / WebView2
+  # ------------------------------------------------------------------
+  windows:
+    if: ${{ inputs.target == 'windows' || inputs.target == 'all' }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm 10.28.1
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Rust (MSVC target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          DATABASE_URL: file:./dev.db
+
+      - name: Build workspace packages
+        shell: bash
+        run: |
+          set -e
+          pnpm --filter @soundx/ws run build
+          pnpm --filter @soundx/i18e run build
+          pnpm --filter @soundx/utils run build
+          pnpm --filter @soundx/db run generate
+          pnpm --filter @soundx/db run build
+          pnpm --filter @soundx/services run build
+        env:
+          DATABASE_URL: file:./dev.db
+
+      - name: Build Tauri Windows installer
+        # build:win = "cross-env VITE_PLATFORM=win tsc -b && vite build && tauri build ..."
+        # cross-env 只作用于第一条命令，这里在 step 级别补齐 VITE_PLATFORM，
+        # 保证 tauri.conf.json 的 beforeBuildCommand (pnpm build) 也拿到同一平台值。
+        shell: bash
+        env:
+          VITE_PLATFORM: win
+        run: pnpm --filter sound-x run build:win
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: AudioDock-Windows-x64
+          path: apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+  # ------------------------------------------------------------------
+  # 3) NAS / Docker 镜像：只用 GITHUB_TOKEN 推到自己的 GHCR
+  # ------------------------------------------------------------------
+  docker:
+    if: ${{ inputs.target == 'docker' || inputs.target == 'all' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Normalize image name to lowercase
+        id: image
+        shell: bash
+        run: echo "name=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR
+        if: ${{ inputs.push_image }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build (and optionally push) image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runner
+          # 不推送时只构建 amd64 单平台并 load 到本地；多平台 + load 不兼容。
+          platforms: ${{ inputs.push_image && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          push: ${{ inputs.push_image }}
+          load: ${{ !inputs.push_image }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

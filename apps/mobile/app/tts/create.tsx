@@ -10,12 +10,10 @@ import {
   TtsReviewItem,
   TtsVoice,
   TtsProvider,
-  plusGetMe,
 } from "@soundx/services";
 import { Audio } from "expo-av";
 import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -50,26 +48,7 @@ export default function TtsCreateTaskScreen() {
   const [previewLoading, setPreviewLoading] = useState<string | null>(null);
 
   const ensureVipAccess = useCallback(async () => {
-    const plusToken = await AsyncStorage.getItem("plus_token");
-    const plusUserId = await AsyncStorage.getItem("plus_user_id");
-    if (!plusToken || !plusUserId) {
-      Alert.alert("提示", "请先登录会员账号", [
-        { text: "取消", style: "cancel" },
-        { text: "去登录", onPress: () => router.replace("/member-login" as any) },
-      ]);
-      return false;
-    }
-    let id:any = plusUserId;
-    try { id = JSON.parse(plusUserId); } catch {}
-    const res = await plusGetMe(id);
-    const tier = res?.data?.data?.vipTier;
-    if (!tier || tier === "NONE") {
-      Alert.alert("提示", "该功能需要开通会员", [
-        { text: "取消", style: "cancel" },
-        { text: "去开通", onPress: () => router.replace("/member-benefits" as any) },
-      ]);
-      return false;
-    }
+    // [MODIFIED] 始终返回 true（永久会员），无任何限制
     return true;
   }, [router]);
 

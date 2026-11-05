@@ -1,4 +1,4 @@
-import { plusGetMe, plusLogin, plusSendCode, setPlusToken } from '@soundx/services';
+import { plusLogin, plusSendCode, setPlusToken } from '@soundx/services';
 import { Image, Input, Text, View } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useState } from 'react';
@@ -59,17 +59,10 @@ export default function MemberLogin() {
         Taro.setStorageSync('plus_user_id', JSON.stringify(userId));
         setPlusToken(plusToken);
 
-        // Fetch VIP status after login
-        try {
-          const profileRes = await plusGetMe(userId);
-          const vipTier = profileRes?.data?.data?.vipTier;
-          const isVipUser = vipTier && vipTier !== 'NONE';
-          Taro.setStorageSync('plus_vip_status', isVipUser ? 'true' : 'false');
-          Taro.setStorageSync('plus_vip_data', JSON.stringify(profileRes?.data?.data || {}));
-          Taro.setStorageSync('plus_vip_updated_at', Date.now().toString());
-        } catch (profileErr) {
-          console.warn('Failed to fetch vip status after login', profileErr);
-        }
+        // [MODIFIED] 登录后直接设置为永久会员
+        Taro.setStorageSync('plus_vip_status', 'true');
+        Taro.setStorageSync('plus_vip_data', JSON.stringify({ vipTier: 'LIFETIME', vipExpiresAt: null }));
+        Taro.setStorageSync('plus_vip_updated_at', Date.now().toString());
 
         Taro.showToast({ title: t('member.loginSuccess'), icon: 'success' });
         setTimeout(() => {

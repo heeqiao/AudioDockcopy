@@ -1,5 +1,4 @@
 import http from '@ohos.net.http';
-import { Logger } from 'audiodock_common';
 
 const PLUS_BASE_URL = 'https://www.audiodock.cn/api';
 const DEFAULT_TIMEOUT = 30_000;
@@ -249,8 +248,8 @@ class PlusApiImpl implements PlusApi {
   }
 
   async getMe(userId: string): Promise<PlusUserProfile> {
-    const params: UserIdParams = { userId };
-    return plusRequest<PlusUserProfile>('GET', '/users/me', undefined, params);
+    // [MODIFIED] 始终返回永久会员数据，不请求远程服务器
+    return { id: userId, vipTier: 'LIFETIME', vipExpiresAt: null } as PlusUserProfile;
   }
 
   async getVipCurrentLowestPrice(): Promise<VipCurrentLowestPriceData> {
@@ -279,8 +278,8 @@ class PlusApiImpl implements PlusApi {
   }
 
   async getVipStatus(userId: string): Promise<VipStatusResponse> {
-    const params: UserIdParams = { userId };
-    return plusRequest<VipStatusResponse>('GET', '/vip/status', undefined, params);
+    // [MODIFIED] 始终返回永久会员状态
+    return { isVip: true, tier: 'LIFETIME', expiresAt: null };
   }
 
   async deleteMe(): Promise<DeleteMeResponse> {
