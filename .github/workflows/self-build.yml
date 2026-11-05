@@ -225,12 +225,14 @@ jobs:
         shell: bash
         run: |
           set -e
-          FILE=$(find node_modules -name MusicModule.kt -path '*react-native-track-player*' | head -1)
+          # -print -quit 避免 find | head 在 pipefail 下被 SIGPIPE 判为失败
+          FILE=$(find node_modules -name MusicModule.kt -path '*react-native-track-player*' -print -quit)
           if [ -n "$FILE" ]; then
             echo "Patching $FILE"
             sed -i 's/metadata.putBundle(Metas.METADATA_KEY_EXTRAS, bundle)/metadata.putBundle(Metas.METADATA_KEY_EXTRAS, bundle ?: Bundle())/g' "$FILE"
             sed -i 's/intent.putExtras(bundle)/intent.putExtras(bundle ?: Bundle())/g' "$FILE"
-            grep -n "METADATA_KEY_EXTRAS\|putExtras" "$FILE" | head
+            # 只做提示，不因目标行不存在而让步骤失败（上游版本可能已自行修复）
+            grep -n "METADATA_KEY_EXTRAS\|putExtras" "$FILE" || echo "  (target lines not present in this version, patch is a no-op)"
           else
             echo "::warning::MusicModule.kt not found, skipping patch"
           fi
@@ -276,8 +278,13 @@ jobs:
           VERSION=$(node -p "require('./apps/mobile/app.json').expo.version")
           DIR=apps/mobile/android/app/build/outputs/apk/release
           ls -lh "$DIR"
-          SRC="$DIR/app-release.apk"
-          test -f "$SRC"
+          if [ -f "$DIR/app-release.apk" ]; then
+            SRC="$DIR/app-release.apk"
+          else
+            # 若将来开启了 ABI splits，退而取第一个 release APK
+            SRC=$(find "$DIR" -maxdepth 1 -name '*.apk' -print -quit)
+          fi
+          test -n "$SRC" && test -f "$SRC"
           NAME="AudioDock-${VERSION}-android.apk"
           OUT="$DIR/$NAME"
           mv "$SRC" "$OUT"
