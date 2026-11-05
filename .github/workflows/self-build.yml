@@ -16,8 +16,9 @@ on:
         options:
           - web       # 仅静态 Web，最便宜，顺带用 tsc -b 校验全部类型改动
           - windows   # Windows x64 安装包 (NSIS .exe)
+          - android   # Android APK (armeabi-v7a + arm64-v8a，debug 签名的 release 包)
           - docker    # NAS 用 Docker 镜像
-          - all
+          - all       # 以上四项全部构建（耗时最长）
       push_image:
         description: "docker: 是否推送镜像到 GHCR（关闭则只构建、不推送）"
         type: boolean
@@ -149,7 +150,151 @@ jobs:
           retention-days: 30
 
   # ------------------------------------------------------------------
-  # 3) NAS / Docker 镜像：只用 GITHUB_TOKEN 推到自己的 GHCR
+  # 3) Android APK：ubuntu-latest 自带 Android SDK，无需任何私有 secrets。
+  #    沿用原作者 android-release.yml 里已验证过的几个坑：
+  #      - 不要用 android-actions/setup-android@v3，它会强装已下线的 'tools' 包，
+  #        在 ubuntu-24.04 上必然失败（Failed to find package 'tools'）。
+  #      - RN 0.81 要求 ndkVersion=27.1.12297006，必须用 sdkmanager 预装并带重试；
+  #        交给 gradle 自动下载时 zip 损坏会报 "Error on ZipFile unknown archive"。
+  #      - app.json 声明了 res/xml/network_security_config.xml，文件需存在于原生工程。
+  #      - react-native-track-player 5.0.0-alpha0 的 MusicModule.kt 有 Kotlin 空安全
+  #        编译错误，需要把可空 Bundle 加 ?: Bundle()。
+  #    release 变体使用仓库自带的 android/app/debug.keystore 签名，
+  #    产物可直接安装到手机/车机，但不能上架，也不能覆盖安装官方同包名版本。
+  # ------------------------------------------------------------------
+  android:
+    if: ${{ inputs.target == 'android' || inputs.target == 'all' }}
+    runs-on: ubuntu-latest
+    env:
+      CI: 1
+      EXPO_NO_TELEMETRY: 1
+      NODE_OPTIONS: --max-old-space-size=4096
+      DATABASE_URL: file:./dev.db
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: "17"
+
+      - name: Verify Android SDK
+        shell: bash
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME" | head
+          sdkmanager --version || true
+
+      - name: Install NDK 27.1.12297006
+        shell: bash
+        run: |
+          set -e
+          if [ -d "$ANDROID_HOME/ndk/27.1.12297006" ]; then
+            echo "NDK 27.1.12297006 already installed"
+            exit 0
+          fi
+          # sdkmanager 不在 PATH：ubuntu 镜像里位于 cmdline-tools/<版本>/bin/ 下
+          SDKMANAGER=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | sort -V | tail -1)
+          [ -z "$SDKMANAGER" ] && SDKMANAGER="$ANDROID_HOME/tools/bin/sdkmanager"
+          echo "Using SDKMANAGER=$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          for i in 1 2 3; do
+            "$SDKMANAGER" "ndk;27.1.12297006" && break
+            echo "NDK install attempt $i failed, cleaning up and retrying..."
+            rm -rf "$ANDROID_HOME/ndk/27.1.12297006" || true
+            sleep 10
+          done
+          ls "$ANDROID_HOME/ndk/27.1.12297006" > /dev/null
+
+      - name: Setup pnpm 10.28.1
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Patch react-native-track-player (Kotlin null-safety)
+        shell: bash
+        run: |
+          set -e
+          FILE=$(find node_modules -name MusicModule.kt -path '*react-native-track-player*' | head -1)
+          if [ -n "$FILE" ]; then
+            echo "Patching $FILE"
+            sed -i 's/metadata.putBundle(Metas.METADATA_KEY_EXTRAS, bundle)/metadata.putBundle(Metas.METADATA_KEY_EXTRAS, bundle ?: Bundle())/g' "$FILE"
+            sed -i 's/intent.putExtras(bundle)/intent.putExtras(bundle ?: Bundle())/g' "$FILE"
+            grep -n "METADATA_KEY_EXTRAS\|putExtras" "$FILE" | head
+          else
+            echo "::warning::MusicModule.kt not found, skipping patch"
+          fi
+
+      - name: Build workspace packages
+        shell: bash
+        run: |
+          set -e
+          pnpm --filter @soundx/ws run build
+          pnpm --filter @soundx/i18e run build
+          pnpm --filter @soundx/utils run build
+          pnpm --filter @soundx/db run generate
+          pnpm --filter @soundx/db run build
+          pnpm --filter @soundx/services run build
+
+      - name: Ensure network security config
+        shell: bash
+        run: |
+          set -e
+          DEST=apps/mobile/android/app/src/main/res/xml
+          mkdir -p "$DEST"
+          if [ ! -f "$DEST/network_security_config.xml" ]; then
+            cp apps/mobile/network_security_config.xml "$DEST/"
+          fi
+          ls -la "$DEST/network_security_config.xml"
+          grep -n "networkSecurityConfig" apps/mobile/android/app/src/main/AndroidManifest.xml
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Android release APK
+        working-directory: apps/mobile/android
+        shell: bash
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --stacktrace
+
+      - name: Prepare APK
+        id: apk
+        shell: bash
+        run: |
+          set -e
+          VERSION=$(node -p "require('./apps/mobile/app.json').expo.version")
+          DIR=apps/mobile/android/app/build/outputs/apk/release
+          ls -lh "$DIR"
+          SRC="$DIR/app-release.apk"
+          test -f "$SRC"
+          NAME="AudioDock-${VERSION}-android.apk"
+          OUT="$DIR/$NAME"
+          mv "$SRC" "$OUT"
+          ls -lh "$OUT"
+          echo "path=$OUT" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AudioDock-Android
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
+
+  # ------------------------------------------------------------------
+  # 4) NAS / Docker 镜像：只用 GITHUB_TOKEN 推到自己的 GHCR
   # ------------------------------------------------------------------
   docker:
     if: ${{ inputs.target == 'docker' || inputs.target == 'all' }}
