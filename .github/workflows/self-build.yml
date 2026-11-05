@@ -22,6 +22,13 @@ on:
         description: "docker: 是否推送镜像到 GHCR（关闭则只构建、不推送）"
         type: boolean
         default: true
+      docker_platforms:
+        description: "docker: 目标平台（NAS 一般是 amd64；arm64 需 QEMU 模拟，会慢很多）"
+        type: choice
+        default: "linux/amd64"
+        options:
+          - linux/amd64
+          - linux/amd64,linux/arm64
 
 permissions:
   contents: read
@@ -156,10 +163,24 @@ jobs:
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
-      - name: Normalize image name to lowercase
+      - name: Normalize image name for GHCR
         id: image
         shell: bash
-        run: echo "name=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+        run: |
+          # Docker reference 的每一段必须以字母或数字结尾。本仓库名是 "AudioDock-"，
+          # 只做小写转换会得到 ghcr.io/heeqiao/audiodock-:latest，
+          # 从而报 "invalid reference format"。这里去掉首尾的 - . _ 分隔符。
+          norm() {
+            printf '%s' "$1" | tr '[:upper:]' '[:lower:]' \
+              | sed -E 's/[^a-z0-9._-]+/-/g; s/^[-._]+//; s/[-._]+$//'
+          }
+          FULL='${{ github.repository }}'
+          OWNER=$(norm "${FULL%%/*}")
+          REPO=$(norm "${FULL#*/}")
+          [ -n "$OWNER" ] || OWNER='${{ github.repository_owner }}'
+          [ -n "$REPO" ] || REPO=audiodock
+          echo "name=ghcr.io/${OWNER}/${REPO}" >> "$GITHUB_OUTPUT"
+          echo "GHCR image: ghcr.io/${OWNER}/${REPO}"
 
       - name: Login to GHCR
         if: ${{ inputs.push_image }}
@@ -183,8 +204,8 @@ jobs:
         with:
           context: .
           target: runner
-          # 不推送时只构建 amd64 单平台并 load 到本地；多平台 + load 不兼容。
-          platforms: ${{ inputs.push_image && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          # 不推送时强制单平台并 load 到本地；多平台 + load 不兼容。
+          platforms: ${{ (inputs.push_image && inputs.docker_platforms) || 'linux/amd64' }}
           push: ${{ inputs.push_image }}
           load: ${{ !inputs.push_image }}
           tags: ${{ steps.meta.outputs.tags }}
