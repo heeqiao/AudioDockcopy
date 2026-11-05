@@ -1,7 +1,7 @@
 ## License
 
 This project is licensed under a **Personal-Use Only License**.
-
+- 二次开发修改，解除vip限制
 - 个人免费、可修改、可分发
 - 商业使用需获得作者授权
 
