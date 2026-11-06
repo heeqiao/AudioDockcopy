@@ -42,6 +42,8 @@ function RootLayoutNav() {
   } =
     useSettings();
   const { theme, colors } = useTheme();
+  // [MODIFIED] 自动避让车机左侧常驻系统 Dock：读取系统上报的安全区，全局生效
+  const safeAreaInsets = useSafeAreaInsets();
   const { pause, resume, playNext, playPrevious, togglePlayMode, isPlaying, currentTrack, playTrackList } = usePlayer();
   const { mode: contentMode } = usePlayMode();
   const segments = useSegments();
@@ -483,8 +485,16 @@ function RootLayoutNav() {
     </View>
   );
 
+  // [MODIFIED] 根节点统一按系统安全区左右内缩，车机模式与普通模式都生效
   return (
-    <>
+    <View
+      style={{
+        flex: 1,
+        paddingLeft: safeAreaInsets.left,
+        paddingRight: safeAreaInsets.right,
+        backgroundColor: colors.background,
+      }}
+    >
       <View style={[styles.pageRoot, { paddingBottom: screenBottomInset }]}>
         {showCarLayout ? (
           <View
@@ -556,12 +566,18 @@ function RootLayoutNav() {
         onClose={dismissPromotion}
         onIgnore={ignorePromotion}
       />
-    </>
+      <PlaybackNotification />
+    </View>
   );
 }
 
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import {
+  SafeAreaProvider,
+  initialWindowMetrics,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import { Image as ExpoImage } from "expo-image";
 import { Animated, StyleSheet, TouchableOpacity, View } from "react-native";
@@ -594,26 +610,28 @@ function OrientationHandler() {
 }
 
 export default function RootLayout() {
+  // [MODIFIED] 显式提供 SafeAreaProvider，保证根布局能稳定读到系统安全区
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SettingsProvider>
-        <ThemeProvider>
-          <AuthProvider>
-            <OrientationHandler />
-            <NotificationProvider>
-              <SyncProvider>
-                <PlayModeProvider>
-                  <PlayerProvider>
-                    <RootLayoutNav />
-                    <PlaybackNotification />
-                  </PlayerProvider>
-                </PlayModeProvider>
-              </SyncProvider>
-            </NotificationProvider>
-          </AuthProvider>
-        </ThemeProvider>
-      </SettingsProvider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SettingsProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <OrientationHandler />
+              <NotificationProvider>
+                <SyncProvider>
+                  <PlayModeProvider>
+                    <PlayerProvider>
+                      <RootLayoutNav />
+                    </PlayerProvider>
+                  </PlayModeProvider>
+                </SyncProvider>
+              </NotificationProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </SettingsProvider>
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
   );
 }
 

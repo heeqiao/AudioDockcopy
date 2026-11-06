@@ -2092,9 +2092,8 @@ export function PlayerDetailView({
         style={[
           styles.container,
           {
+            // [MODIFIED] 左右安全区已由根布局全局处理，此处不再重复内缩
             backgroundColor: themeBackground,
-            paddingLeft: insets.left,
-            paddingRight: insets.right,
           },
         ]}
       >
